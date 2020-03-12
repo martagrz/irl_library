@@ -1,102 +1,106 @@
 import numpy as np
-from algorithms.LinearMDP import LinearMDP
+from scipy.optimize import minimize
 np.random.seed(0)
 
+
 class MaxEnt:
-    def __init__(self, env, params, mdp_solver, laplace_prior=None, verbose=False):
+    def __init__(self, env, mdp_solver, laplace_prior=None, verbose=False):
         self.env = env
-        self.params = params
         self.verbose = verbose
         self.laplace_prior = laplace_prior
         self.mdp_solver = mdp_solver
 
-    def compute_objective(self, reward_function, features, feature_expectations, state_action_expectations):
-        weights = reward_function
-        reward_function = features*reward_function
+    def compute_objective(self, features, feature_expectations, init_state_dist, state_action_count):
+        laplace_prior = self.laplace_prior
+        n_actions = self.env.n_actions
 
-        _, _, policy, log_policy = self.mdp_solver.linear_value_iteration()
+        def function(rewards_vector):
+            weights = rewards_vector
+            states_rewards_matrix = features * rewards_vector
+            states_actions_rewards_matrix = np.repeat(states_rewards_matrix[0][..., np.newaxis], n_actions, axis=1)
 
-        sum_log_probabilities = sum(sum(log_policy * state_action_expectations))
+            _, _, policy, log_policy = self.mdp_solver.linear_value_iteration(states_actions_rewards_matrix)
 
-        if self.laplace_prior is not None:
-            sum_log_probabilities = sum_log_probabilities - self.laplace_prior * sum(abs(weights))
+            sum_log_probabilities = np.sum(np.sum(np.multiply(log_policy, state_action_count)))
 
-        sum_log_probabilities = - sum_log_probabilities
-        state_visitation_count = self.mdp_solver.linear_mdp_frequency()
-        gradient = feature_expectations -  np.dot(features.T,state_visitation_count)
+            if laplace_prior is not None:
+                sum_log_probabilities = sum_log_probabilities - laplace_prior * np.sum(np.abs(weights))
 
-        if self.laplace_prior is not None:
-            gradient = gradient - self.laplace_prior * np.sign(weights)
+            sum_log_probabilities = - sum_log_probabilities
+            state_dist = self.mdp_solver.linear_mdp_frequency(policy, init_state_dist)
 
-        gradient = -gradient
-        return sum_log_probabilities, gradient
+            # Gradient calculations
+            gradient = feature_expectations - np.dot(features.T, state_dist)
+            if laplace_prior is not None:
+                gradient = gradient - laplace_prior * np.sign(weights)
+            gradient = -gradient
 
-    def run(self, demonstrations, features_type='none'):
-        states = self.env.n_states
-        actions = self.env.n_actions
-        transitions = self.env.transitons
-        n_demos, n_steps = demonstrations.shape()
+            return sum_log_probabilities
 
-        # Build feature membership matrix. ?????????
-        if features_type == 'true':
-            features = feature_data.splittable
-            # Add dummy feature.
-            features = horzcat(F, ones(states, 1))
+        return function
 
-        elif features_type == 'learned':
-            features = true_features
+    def run(self, demonstrations, features=None):
+        # demonstrations is shape [N, T, 2] - last dimension is state/action pair
+        n_demos, n_steps, _ = demonstrations.shape
 
-        else:
-            features = np.eye(states)
+        # Build feature membership matrix, shape: n_states by n_features
+        if features is None:
+            features = np.eye(self.env.n_states)
+
+        # Count features
+        _, n_features = features.shape
+        assert features.shape[0] == self.env.n_states
 
         # Compute feature expectations.
-        feature_expectations = np.zeros((features.shape(), 1))
-        state_list = np.zeros((n_demos, n_steps))
-        action_list = np.zeros((n_demos, n_steps))
-        state_action_count = np.zeros((states, actions))
+        feature_expectations = np.zeros((n_features, 1))
+        state_list = np.zeros((n_demos, n_steps))  # populated by state index
+        action_list = np.zeros((n_demos, n_steps))  # populated by action index
+        state_action_count = np.zeros((self.env.n_states, self.env.n_actions))
+
         for i in np.arange(n_demos):
             for t in np.arange(n_steps):
-                state = demonstrations[i,t][0]
-                action = demonstrations[i,t][1]
+                state = np.int(demonstrations[i, t, 0])
+                action = np.int(demonstrations[i, t, 1])
                 state_list[i, t] = state
                 action_list[i, t] = action
-                state_action_count[state, action] +=1
-                state_vec = np.zeros((states, 1))
+                state_action_count[state, action] += 1
+                state_vec = np.zeros((self.env.n_states, 1))
                 state_vec[state] = 1
-                feature_expectations = feature_expectations + np.dot(features.T, state_vec)
+                feature_expectations += np.dot(features.T, state_vec)
+                # here simple matrix transpose is used assuming no imaginary components of features matrix
 
-        # Generate initial state distribution for infinite horizon. WHAT IS THIS?????????
-        initial_state_dist = np.sum(
-            np.sparse(state_list, 1: n_demos * n_steps, np.ones((n_demos * n_steps, 1)), states, n_demos * n_steps)
-        * np.ones(n_demos * n_steps, 1), 2) #what is this though
+        # Generate initial state distribution. Gives number of times a state has been visited across all demos/time
+        init_state_dist = np.zeros(self.env.n_states)
+        for i in np.arange(n_demos):
+            for t in np.arange(n_steps):
+                state = np.int(state_list[i, t])
+                init_state_dist[state] += 1
+
         for i in np.arange(n_demos):
             for t in np.arange(n_steps):
                 state = state_list[i, t]
                 action = action_list[i, t]
-                for transition in np.ranage(transitions): #WHAT IS TRANSITION??????
-                    next_state = self.env.step(state, action, transition)
-                    initial_state_dist[next_state] = initial_state_dist[next_state] - self.env.discount * self.env.sa_p(state, action, transition)
-
-        function = self.compute_objective
-        function_options = 1
-
-        # Initialize reward.
-        reward_function = np.random((features, 1))
+                transition_probabilities, possible_next_states = self.env.get_transitions(state, action)
+                for s in np.arange(len(possible_next_states)):
+                    next_state = np.int(possible_next_states[s])
+                    next_state_probability = transition_probabilities[s]
+                    init_state_dist[next_state] -= self.env.discount_rate * next_state_probability
+                    # Isn't this assuming we know the transition probabilities a priori...?
 
         # Run unconstrainted non-linear optimization.
-        reward_function, _  = minFunc(function, reward_function, function_options)
+        init_rewards = np.random.uniform(0, 1, n_features)[..., np.newaxis]
+        function = self.compute_objective(features, feature_expectations, init_state_dist, state_action_count)
 
-        # Print timing.
-        time = toc
-        if verbose != 0:
-             fprintf(1, 'Optimization completed in %f seconds.\n', time);
+        function_output = minimize(function,
+                                   init_rewards,
+                                   method='BFGS')
+
+        rewards_vector = function_output.x
 
         # Convert to full tabulated reward.
-        weights = reward_function
-        reward_function = np.dot(features,reward_function)
-
+        weights = rewards_vector
+        states_rewards_matrix = features * rewards_vector
         # Return corresponding reward function.
-        reward_function = repmat(r, 1, actions)
-        value_function, q_function, policy = solve_mdp(self.env, reward_function)
-
-        return reward_function, value_function, q_function, policy, time
+        states_actions_rewards_matrix = np.repeat(states_rewards_matrix[0][..., np.newaxis], self.env.n_actions, axis=1)
+        state_values, q_values, policy, log_policy = self.mdp_solver.solve(states_actions_rewards_matrix)
+        return state_values, q_values, policy, log_policy, states_actions_rewards_matrix

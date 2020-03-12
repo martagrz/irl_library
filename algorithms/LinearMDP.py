@@ -2,66 +2,77 @@ import numpy as np
 
 class LinearMDP:
     def __init__(self, env):
+        self.env = env
 
-    def softmax(q_values):
-        # Find maximum elements.
-        maxx = np.max(q)
-        # Compute safe softmax
-        v = maxx + np.log(np.sum(np.exp(q - np.repeat(maxx)))) #CHECK THIS!
-        return
+    def compute_softmax(self, q_values):
+        max_q_values = np.amax(q_values, axis=1) # get max along each row
+        n_rows, n_cols = q_values.shape
+        state_values = max_q_values + np.log(np.sum(np.exp(q_values - np.repeat(max_q_values[:, np.newaxis], n_cols, axis=1))))
+        return state_values
 
-    def linear_value_iteration(env, reward_function, init_state_values=None):
+    def linear_value_iteration(self, states_actions_rewards_matrix, init_state_values=None):
         convergence_value = 1e-4 #or 1e-10
         diff = 1.0
-        q_values = np.zeros((env.n_states, env.n_actions))
+        q_values = np.zeros((self.env.n_states, self.env.n_actions))
+
         if init_state_values is not None:
             state_values = init_state_values
         else:
-            state_values = np.zeros(env.n_states)
+            state_values = np.zeros(self.env.n_states)
+
         while diff >= convergence_value:
             old_state_values = state_values
-            for state in np.arange(env.n_states):
-                for action in np.arange(env.n_actions):
-                    reward = reward_function(state, action)
-                    transition_probabilities, possible_next_states = env.get_transitions(state, action)
-                    next_state_values = np.array(len(possible_next_states))
+
+            for state in np.arange(self.env.n_states):
+                for action in np.arange(self.env.n_actions):
+                    reward = states_actions_rewards_matrix[state, action]
+                    transition_probabilities, possible_next_states = self.env.get_transitions(state, action)
+                    next_state_values = np.zeros(len(possible_next_states))
+
                     for i in np.arange(len(possible_next_states)):
-                        next_state = possible_next_states[i]
+                        next_state = np.int(possible_next_states[i])
                         next_state_values[i] = state_values[next_state]
-                    q_values[state, action] = reward + env.discount_rate * np.dot(transition_probabilities, next_state_values)
-            state_values = softmax(q_values)
+                        # Rewriting this in env as matrices would save doing all these for loops ...
+
+                    update_value = np.sum(np.multiply(transition_probabilities, next_state_values))
+                    q_values[state, action] = reward + self.env.discount_rate * update_value
+
+            state_values = self.compute_softmax(q_values)
             diff = np.max(np.abs(state_values - old_state_values))
-        log_policy= q_values - np.repeat(state_values, 1, actions)
+
+        log_policy = q_values - np.repeat(state_values[:, np.newaxis], self.env.n_actions, axis=1)
         policy = np.exp(log_policy)
         return state_values, q_values, policy, log_policy
 
-
-    def linear_mdp_frequency(env, mdp_solution, init_state_visitation_count=None, previous_state_visitation_count=None):
+    def linear_mdp_frequency(self, policy, init_state_distribution=None):
         # Compute the occupancy measure of the linear MDP given a policy.
-        states = env.n_states
-        actions = env.n_actions
-        transitions = env.transitions
         diff = 1.0
         convergence_value = 1e-4
-        # convergence_value = 1e-10
-        if previous_state_visitation_count is not None:
-            state_visitation_count = previous_state_visitation_count
-        else:
-            state_visitation_count = np.zeros((states, 1))
 
-        if init_state_visitation_count is not None:
-            init_state_visitation_count = (1 / states) * np.ones(states, 1);
+        if init_state_distribution is None:
+            state_distribution = (1 / self.env.n_states) * np.ones(self.env.n_states)
+        else:
+            state_distribution = init_state_distribution
 
         while diff >= convergence_value:
-            new_state_visitation_count = state_visitation_count
-            Dpi = repmat(mdp_solution.p, [1 1 transitions]). * mdp_data.sa_p. * repmat(Dp, [1 actions transitions]) * env.discount
-            state_visitation_count = init_state_visitation_count + sum(sparse(mdp_data.sa_s(:), 1: states * actions * transitions, Dpi(:),
-                states, states * actions * transitions)*ones(states * actions * transitions, 1), 2)
-            diff = max(abs(state_visitation_count - new_state_visitation_count))
+            old_state_distribution = state_distribution
 
-        return state_visitation_count
+            for state in np.arange(self.env.n_states):
+                state_probability = state_distribution[state]
+                for action in np.arange(self.env.n_actions):
+                    policy_value = policy[state, action]
+                    transition_probabilities, possible_next_states = self.env.get_transitions(state, action)
+                    for i in np.arange(len(possible_next_states)):
+                        next_state = np.int(possible_next_states[i])
+                        probability = transition_probabilities[i]
+                        update_value = policy_value * probability * state_probability * self.env.discount_rate
+                        state_distribution[next_state] += update_value
 
+            # state_dist is a VECTOR of length n_states
+            diff = np.max(np.abs(state_distribution - old_state_distribution))
 
-    def solve_mdp(env, reward_function):
-        return linear_value_iteration(env, reward_function)
+        return state_distribution
+
+    def solve(self, states_actions_rewards_matrix):
+        return self.linear_value_iteration(states_actions_rewards_matrix)
 

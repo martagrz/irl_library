@@ -16,21 +16,24 @@ class MaxEnt:
 
         def function(rewards_vector):
             weights = rewards_vector
-            states_rewards_matrix = features * rewards_vector
-            states_actions_rewards_matrix = np.repeat(states_rewards_matrix[0][..., np.newaxis], n_actions, axis=1)
-
+            # print('rv', rewards_vector.shape)
+            states_rewards_matrix = features @ rewards_vector
+            # print('s', states_rewards_matrix.shape)
+            states_actions_rewards_matrix = np.repeat(states_rewards_matrix[..., np.newaxis], n_actions, axis=1)
+            # print('sa', states_actions_rewards_matrix.shape)
             _, _, policy, log_policy = self.mdp_solver.linear_value_iteration(states_actions_rewards_matrix)
 
-            sum_log_probabilities = np.sum(np.sum(np.multiply(log_policy, state_action_count)))
-
+            sum_log_probabilities = np.sum((log_policy * state_action_count))
             if laplace_prior is not None:
                 sum_log_probabilities = sum_log_probabilities - laplace_prior * np.sum(np.abs(weights))
 
             sum_log_probabilities = - sum_log_probabilities
+            print('Loss: ', sum_log_probabilities)
+
             state_dist = self.mdp_solver.linear_mdp_frequency(policy, init_state_dist)
 
             # Gradient calculations
-            gradient = feature_expectations - np.dot(features.T, state_dist)
+            gradient = feature_expectations - np.multiply(features.T, state_dist)
             if laplace_prior is not None:
                 gradient = gradient - laplace_prior * np.sign(weights)
             gradient = -gradient
@@ -49,7 +52,7 @@ class MaxEnt:
 
         # Count features
         _, n_features = features.shape
-        assert features.shape[0] == self.env.n_states
+        #assert features.shape[0] == self.env.n_states
 
         # Compute feature expectations.
         feature_expectations = np.zeros((n_features, 1))
@@ -64,9 +67,9 @@ class MaxEnt:
                 state_list[i, t] = state
                 action_list[i, t] = action
                 state_action_count[state, action] += 1
-                state_vec = np.zeros((self.env.n_states, 1))
+                state_vec = np.zeros(self.env.n_states)
                 state_vec[state] = 1
-                feature_expectations += np.dot(features.T, state_vec)
+                feature_expectations = feature_expectations + np.multiply(features.T, state_vec)
                 # here simple matrix transpose is used assuming no imaginary components of features matrix
 
         # Generate initial state distribution. Gives number of times a state has been visited across all demos/time
@@ -88,19 +91,22 @@ class MaxEnt:
                     # Isn't this assuming we know the transition probabilities a priori...?
 
         # Run unconstrainted non-linear optimization.
-        init_rewards = np.random.uniform(0, 1, n_features)[..., np.newaxis]
+        init_rewards = np.repeat(-10, n_features)[..., np.newaxis]
         function = self.compute_objective(features, feature_expectations, init_state_dist, state_action_count)
 
         function_output = minimize(function,
                                    init_rewards,
-                                   method='BFGS')
+                                   method='BFGS',
+                                   options={'maxiter': 2, 'disp': True})
 
         rewards_vector = function_output.x
+        print('Learned rewards: ', rewards_vector.reshape((self.env.n_rows, self.env.n_cols)))
 
         # Convert to full tabulated reward.
         weights = rewards_vector
-        states_rewards_matrix = features * rewards_vector
+        states_rewards_matrix = features @ rewards_vector
+        states_actions_rewards_matrix = np.repeat(states_rewards_matrix[..., np.newaxis], self.env.n_actions, axis=1)
         # Return corresponding reward function.
-        states_actions_rewards_matrix = np.repeat(states_rewards_matrix[0][..., np.newaxis], self.env.n_actions, axis=1)
         state_values, q_values, policy, log_policy = self.mdp_solver.solve(states_actions_rewards_matrix)
-        return state_values, q_values, policy, log_policy, states_actions_rewards_matrix
+
+        return state_values, q_values, policy, log_policy, rewards_vector

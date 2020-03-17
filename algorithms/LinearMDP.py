@@ -70,7 +70,6 @@ class LinearMDP:
 
             # state_dist is a VECTOR of length n_states
             diff = np.max(np.abs(state_distribution - old_state_distribution))
-
         return state_distribution
 
     def solve(self, states_actions_rewards_matrix):

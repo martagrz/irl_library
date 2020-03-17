@@ -25,13 +25,13 @@ class GridWorld:
         else:
             self.goal_state_index = goal_state_index
 
-        self.states_actions_rewards_matrix = -np.ones((self.n_states, self.n_actions))
-        self.states_actions_rewards_matrix[self.goal_state_index] = 10
+        self.states_actions_rewards_matrix = -10 * np.ones((self.n_states, self.n_actions))
+        self.states_actions_rewards_matrix[self.goal_state_index] = -1
 
         self.transition_probabilities = np.zeros((self.n_states, self.n_actions, self.n_actions))
         self.possible_next_states = np.zeros((self.n_states, self.n_actions, self.n_actions))
 
-        for state in range(self.n_states-1):
+        for state in range(self.n_states):
             for action in range(self.n_actions):
                 probabilities, next_states = self.get_transitions(state, action)
                 self.transition_probabilities[state, action] = probabilities

@@ -88,12 +88,12 @@ class GridWorld:
         elif action == 4:
             next_state = state
 
+        next_state_index = self.get_index(next_state)
+
         if wind:
             if np.random.uniform(0, 1) < self.random_shift:
                 _, possible_next_states = self.get_transitions(state_index, action)
-                next_state = np.random.choice(possible_next_states)
-
-        next_state_index = self.get_index(next_state)
+                next_state_index = np.int(np.random.choice(possible_next_states))
 
         if next_state_index == self.goal_state_index:
             done = True

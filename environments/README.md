@@ -20,7 +20,7 @@ Each environment fully specifies an MDP and is defined by a **class** which, in 
 * initialisation state
 
 `env.get_transitions` takes as input a state-action pair and returns 
-* a vector of possible next states 
+* a vector of possible next states, shape n_states x n_actions x n_states
 * the corresponding transition probabilities
 
 `env.step` takes as input a state-action pair and returns 

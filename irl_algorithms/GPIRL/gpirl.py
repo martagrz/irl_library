@@ -37,7 +37,7 @@ class GPIRL:
             gp_log_likelihood = -0.5 * u.T @ K_uu_inverse @ u - 0.5 * np.log(np.linalg.det(K_uu)) - n/2 * np.log(2*np.pi)
 
             # IRL likelihood
-            states_rewards_matrix = K_ru.T @ K_uu_inverse @ u
+            states_rewards_matrix = K_ru.T @ K_uu_inverse @ u # predictive distribution
             sa_reward_matrix = np.repeat(states_rewards_matrix[..., np.newaxis], self.env.n_actions, axis=1)
             _, _, policy, log_policy = self.mdp_solver.linear_value_iteration(sa_reward_matrix)
             irl_log_likelihood = np.sum(np.sum(log_policy * state_action_count))

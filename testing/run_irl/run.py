@@ -1,4 +1,4 @@
-from irl_algorithms.maxent import MaxEnt
+from irl_algorithms.MaxEntIRL.maxent import MaxEnt
 from rl_algorithms.LinearMDP import LinearMDP
 from irl_algorithms.GPIRL.gpirl import GPIRL
 from environments.gridworld import GridWorld
@@ -7,11 +7,11 @@ from testing.run_irl.utils import run_algo, run_optimal
 # Set parameters
 n_rows = 10
 n_cols = 10
-discount_rate = 0.8
+discount_rate = 0.4
 random_shift = 0.3
 goal_state_index = [12, 47]
-n_steps = 50
-n_demos = 1000
+n_steps = 10
+n_demos = 100
 
 # Initialise framework
 env = GridWorld(n_rows, n_cols, discount_rate, random_shift=0, goal_state_index=goal_state_index)

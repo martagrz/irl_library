@@ -11,6 +11,16 @@ class LinearMDP:
         return state_values
 
     def linear_value_iteration(self, sa_reward_matrix, init_state_values=None):
+        """
+        Calculates the state and s-a pair values and policy given a s-a reward matrix
+        :param sa_reward_matrix: rewards for each s-a pair [N_STATES, N_ACTIONS]
+        :param init_state_values:
+
+        :return state_values: state value (V)
+        :return q_values: s-a values (Q)
+        :return policy: policy values for each s-a pair [N_STATES, N_ACTIONS] (pi(a|s))
+        :return log_policy: log of policy (log pi(a|s))
+        """
         convergence_value = 1e-4 #or 1e-10
         diff = 1.0
         q_values = np.zeros((self.env.n_states, self.env.n_actions))
@@ -26,18 +36,11 @@ class LinearMDP:
             for state_index in np.arange(self.env.n_states):
                 for action_index in np.arange(self.env.n_actions):
                     reward = sa_reward_matrix[state_index, action_index]
-                    possible_next_states = self.env.possible_next_states[state_index][action_index]
-                    transition_probabilities = self.env.transition_probabilities[state_index][action_index]
-
-                    if isinstance(possible_next_states, float):
-                        next_state_index = np.int(possible_next_states)
-                        next_state_values = state_values[next_state_index]
-                    else:
-                        next_state_values = np.zeros(len(possible_next_states))
-                        for i in np.arange(len(possible_next_states)):
-
-                            next_state_index = np.int(possible_next_states[i])
-                            next_state_values[i] = state_values[next_state_index]
+                    transition_probabilities = self.env.transition_probabilities[state_index, action_index, :]
+                    next_state_values = np.zeros(self.env.n_states)
+                    for i in np.arange(self.env.n_states):
+                        next_state_index = np.int(i)
+                        next_state_values[i] = state_values[next_state_index]
 
                     update_value = np.sum(np.multiply(transition_probabilities, next_state_values))
                     q_values[state_index, action_index] = reward + self.env.discount_rate * update_value
@@ -50,6 +53,14 @@ class LinearMDP:
         return state_values, q_values, policy, log_policy
 
     def linear_mdp_frequency(self, policy, init_state_distribution=None):
+        """
+        Computes state frequency under given policy
+        :param policy: [N_STATES, N_ACTIONS]
+        :param init_state_distribution:
+
+        :return state_distribution: [N_STATES]
+        """
+        transition_probabilities = self.env.transition_probabilities
         # Compute the occupancy measure of the linear MDP given a policy.
         diff = 1.0
         convergence_value = 1e-4
@@ -66,10 +77,8 @@ class LinearMDP:
                 state_probability = state_distribution[state]
                 for action in np.arange(self.env.n_actions):
                     policy_value = policy[state, action]
-                    transition_probabilities, possible_next_states = self.env.get_transitions(state, action)
-                    for i in np.arange(len(possible_next_states)):
-                        next_state = np.int(possible_next_states[i])
-                        probability = transition_probabilities[i]
+                    for next_state in np.arange(self.env.n_states):
+                        probability = transition_probabilities[state, action, next_state]
                         update_value = policy_value * probability * state_probability * self.env.discount_rate
                         state_distribution[next_state] += update_value
 
@@ -77,6 +86,6 @@ class LinearMDP:
             diff = np.max(np.abs(state_distribution - old_state_distribution))
         return state_distribution
 
-    def solve(self, states_actions_rewards_matrix):
-        return self.linear_value_iteration(states_actions_rewards_matrix)
+    def solve(self, sa_rewards_matrix):
+        return self.linear_value_iteration(sa_rewards_matrix)
 

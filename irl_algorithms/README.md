@@ -5,15 +5,14 @@
 ## Implemented: 
 * LinearMDP
 * MaxEnt 
+* GP-IRL
+* DeepMaxEnt IRL
+* Linear IRL
 
 ## To do: 
-* StandardMDP
-* FIRL
-* GP-IRL 
-* MWAL 
-* MMP 
-* MMPBoost
-* LEARCH
+* DMGP-IRL
+* NP-IRL
+* GAIL
 
 ---
 
@@ -25,6 +24,15 @@ MDP solver used to generate synthetic examples
 ## IRL Algorithms 
 * MaxEnt - Maximum Entropy 
 * GP-IRL - Gaussian process 
-* FIRL - Feature Construction
 
+---
+
+Each IRL algorithm directory contains the following files: 
+* model for extracting reward function (e.g. NN, GP)
+* the algorithm itself
+* testing script
+
+In utils, there is: 
+* get_statistics
+* policy propagation
 

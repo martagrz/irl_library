@@ -17,7 +17,7 @@ def run_optimal(env, n_rows, n_cols, n_steps, n_demos, mdp_solver, title=None, s
 
 def run_algo(demonstrations, n_rows, n_cols, algo, name, train=True, show=True):
     print('Running IRL algorithm', name)
-    path = './run_irl/pickle_jar/' + name
+    path = './pickle_jar/' + name
     if train:
         state_values, q_values, policy, log_policy, rewards_vector = algo.run(demonstrations)
         pickle.dump(state_values, open(path + "/state_values.p", "wb"))

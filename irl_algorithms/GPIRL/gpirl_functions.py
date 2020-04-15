@@ -43,9 +43,6 @@ def get_kernel(gp, r, u, regularise=False):
             #kernel_matrix = rbf_var * np.exp(-0.5 * d_uu - regulariser)
 
         else:
-            #d_uu = np.einsum("imk,kl,lmn->in", M, diag_matrix, M.T)
-            #d_uu = np.maximum(d_uu, 0)
-            #kernel_matrix = rbf_var * np.exp(-0.5 * d_uu)
             dist_x_y = np.sum(x ** 2, axis=1) + np.sum(y ** 2, axis=1).T - 2 * x @ y.T
             dist_x_y = np.maximum(dist_x_y, 0)
             kernel_matrix = rbf_var * np.exp(-0.5 * dist_x_y)

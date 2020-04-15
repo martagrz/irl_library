@@ -28,27 +28,23 @@ class GridWorld:
         self.states_actions_rewards_matrix = -10 * np.ones((self.n_states, self.n_actions))
         self.states_actions_rewards_matrix[self.goal_state_index] = -1
 
-        self.transition_probabilities = np.zeros((self.n_states, self.n_actions, self.n_actions))
-        self.possible_next_states = np.zeros((self.n_states, self.n_actions, self.n_actions))
+        self.transition_probabilities = self.get_transition_probabilities()
 
-        for state in range(self.n_states):
-            for action in range(self.n_actions):
-                probabilities, next_states = self.get_transitions(state, action)
-                self.transition_probabilities[state, action] = probabilities
-                self.possible_next_states[state, action] = next_states
+    def get_transition_probabilities(self):
+        transition_probabilities = np.zeros((self.n_states, self.n_actions, self.n_states))  # [s, a, s']
+        for state_index in np.arange(self.n_states):
+            possible_next_states = np.zeros(self.n_actions)
+            _probabilities = np.zeros(self.n_actions)
 
-    def get_transitions(self, state_index, action):
-        transition_probabilities = np.zeros(self.n_actions)
-        possible_next_states = np.zeros(self.n_actions)
-        for i in np.arange(self.n_actions):
-            other_action = self.action_space[i]
-            next_state_index, _, _ = self.step(state_index, other_action, wind=False)
-            possible_next_states[i] = np.int(next_state_index)
-            if other_action == action:
-                transition_probabilities[i] = 1 - self.random_shift + self.random_shift/self.n_actions
-            else:
-                transition_probabilities[i] = self.random_shift/self.n_actions
-        return transition_probabilities, possible_next_states
+            for action_index in np.arange(self.n_actions):
+                next_state_index, _, _ = self.step(state_index, action_index, wind=False)
+                possible_next_states[action_index] = next_state_index
+                transition_probabilities[state_index, action_index, next_state_index] += 1- self.random_shift
+
+            for next_state_index in possible_next_states:
+                _prob = self.random_shift/self.n_actions
+                transition_probabilities[state_index, :, np.int(next_state_index)] += _prob
+        return transition_probabilities
 
     def reset(self):
         return self.init_state_index

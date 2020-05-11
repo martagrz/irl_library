@@ -51,17 +51,23 @@ class DMGPIRL:
             features = np.eye(self.env.n_states) #one hot encode states - change for non-discrete features
         _, state_action_count, init_state_dist = get_statistics(self.env, demonstrations, features)
 
-        X_u = # x_train demonstrations provides the states and actions that we have seen - this is u
-        u = # y_train - randomly generate reward values for the seen states or s-a pairs
-        r = # y_test Randomly initialise the reward function
-        X_r = # x_test features of all the states in the environment
+        reward_vector = np.ones(features.shape[0])
+        reward_tensor = tf.convert_to_tensor(reward_vector)
+        features_tensor = tf.convert_to_tensor(features)
+        m_in = 20
+        d_in = 1
 
-        # change X_u and u into tensors
+        model_dmgp = DMGP_Regressor(data=(features_tensor, reward_tensor), m=m_in, d=d_in, simple_dnn=True)
 
-        model_dmgp = DMGP_Regressor(data=(X_u, u), m=m_in, d=d_in, simple_dnn=True)
+        with tf.GradientTape as tape:
+            loss = self.get_loss(model_dmgp, state_action_count)
+            opt = gpflow.optimizers.Scipy()
 
-        loss = self.get_loss(model_dmgp, state_action_count)
-        opt = gpflow.optimizers.Scipy()
+            @tf.custom_gradient
+            def grad(dr):
+
+
+            return loss, grad
 
         # add reward vector to trainable variables
 
